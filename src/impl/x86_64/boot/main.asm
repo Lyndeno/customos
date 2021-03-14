@@ -1,4 +1,5 @@
 global start
+extern long_mode_start
 
 section .text
 bits 32
@@ -12,8 +13,10 @@ start:
     call setup_page_tables
     call enable_paging
 
-    ; print 'OK'
-    mov dword [0xb8000], 0x2f4b2f4f
+    lgdt [gdt64.pointer]
+    jmp gdt64.code_segment:long_mode_start
+
+    
     hlt
 
 check_multiboot:
@@ -37,6 +40,7 @@ check_cpuid:
     popfd
     cmp eax, ecx
     je .no_cpuid
+    ret
 .no_cpuid:
     mov al, "C"
     jmp error
@@ -44,16 +48,18 @@ check_cpuid:
 check_long_mode:
     mov eax, 0x80000000
     cpuid
-    cmpeax, 0x80000001
+    cmp eax, 0x80000001
     jb .no_long_mode
 
-    move eax, 0x80000001
+    mov eax, 0x80000001
     cpuid
     test edx, 1 << 29
     jz .no_long_mode
+
+    ret
 .no_long_mode:
     mov al, "L"
-    error
+    jmp error
 
 setup_page_tables:
     mov eax, page_table_l3
@@ -64,7 +70,7 @@ setup_page_tables:
     or eax, 0b11 ; present, writable flags
     mov [page_table_l3], eax
 
-    mov ecs, 0 ; counter
+    mov ecx, 0 ; counter
 .loop:
 
     mov eax, 0x200000; 2MiB
@@ -72,7 +78,7 @@ setup_page_tables:
     or eax, 0b10000011 ; present, writable and huge page flags
     mov [page_table_l2 + ecx * 8], eax
 
-    inc ecs, 0 ; increment counter
+    inc ecx ; increment counter
     cmp ecx, 512 ; checks if whole table mapped
     jne .loop ; if not, then loop
     ret
@@ -121,3 +127,12 @@ page_table_l2:
 stack_bottom:
     resb 4096 * 4
 stack_top:
+
+section .rodata
+gdt64:
+    dq 0 ; zero entry
+.code_segment: equ $ - gdt64
+    dq (1 << 43) | (1 << 44) | (1 << 47) | (1 << 53) ; code segment
+.pointer: 
+    dw $ - gdt64 - 1
+    dq gdt64
