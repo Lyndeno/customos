@@ -77,6 +77,29 @@ setup_page_tables:
     jne .loop ; if not, then loop
     ret
 
+enable_paging:
+    ; pass the location of the page table to cpu
+    mov eax, page_table_l4
+    mov cr3, eax
+
+    ; enable PAE
+    mov eax, cr4
+    or eax, 1 << 5 ; enable pae flag
+    mov cr4, eax
+
+    ; enable long mode
+    mov ecx, 0xC0000080
+    rdmsr
+    or eax, 1 << 8
+    wrmsr
+
+    ; enable paging
+    mov eax, cr0
+    or eax, 1 << 31 ; enable paging bit
+    mov cr0, eax
+
+    ret
+
 
 error:
     ; print "ERR: X" where X is the given error code
