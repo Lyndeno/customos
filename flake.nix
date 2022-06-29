@@ -8,6 +8,10 @@
     system = "x86_64-linux";
     pkgs = import inputs.nixpkgs {
       inherit system;
+      crossSystem = {
+        config = "x86_64-elf";
+        libc = "newlib";
+      };
     };
 
     lib = inputs.nixpkgs.lib;
@@ -16,10 +20,11 @@
       name = "customos";
       src = self;
       nativeBuildInputs = [
-        gnumake
-        grub2
-        coreboot-toolchain.x64
-        xorriso
+        buildPackages.gnumake
+        buildPackages.grub2
+        #coreboot-toolchain.x64
+        buildPackages.xorriso
+        buildPackages.nasm
       ];
       installPhase = ''
         mkdir $out
@@ -29,9 +34,10 @@
   in {
     packages."${system}".default = customos;
     devShells."${system}".default = pkgs.mkShell {
-      buildInputs = with pkgs; [
-        qemu
+      nativeBuildInputs = with pkgs; [
+        buildPackages.buildPackages.qemu
       ] ++ customos.nativeBuildInputs;
+      buildInputs = customos.buildInputs;
     };
   };
 
